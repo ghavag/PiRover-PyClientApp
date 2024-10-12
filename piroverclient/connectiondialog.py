@@ -1,8 +1,13 @@
+import socket
+import re
+import hashlib
 from tkinter import *
 from tkinter import ttk, messagebox
 
 class ConnectionDialog():
     def __init__(self):
+        self.sock = None
+
         self.window = Tk()
         self.window.title("PiRover Client App")
 
@@ -38,19 +43,25 @@ class ConnectionDialog():
         self.btn_connect = ttk.Button(master=self.frm, text="Okay", command=self._on_connect, width=17)
         self.btn_connect.grid(row=5, column=1)
 
+    def __del__(self):
+        if self.sock:
+            self.sock.close()
+    
     def show(self):
-        self.connection_params = None
         self.window.mainloop()
+        return self.sock != None
 
     def _on_connect(self):
-        print("On connect")
         self.ent_server_address["style"] = ""
         self.ent_server_port["style"] = ""
 
-        if (res := self._validate()):
-            self.connection_params = {'password': self.ent_password.get(), 'record_video': self.record_video.get()}
-            self.connection_params.update(res)
-            self.window.destroy()
+        if (self._validate()):
+            try:
+                self._connect_to_pirover()
+            except Exception as e:
+                messagebox.showerror("Unable to connect", e)
+            else:
+                self.window.destroy()
 
     def _validate(self):
         hostname = self.ent_server_address.get()
@@ -75,7 +86,10 @@ class ConnectionDialog():
             messagebox.showerror("Invalid port", "Please enter a valid port number.")
             return False
 
-        return {'address': hostname, 'port': port}
+        self.hostname = hostname
+        self.port = port
+
+        return True
 
     # https://stackoverflow.com/questions/2532053/validate-a-hostname-string
     def _is_valid_hostname(self, hostname):
@@ -86,3 +100,42 @@ class ConnectionDialog():
 
         allowed = re.compile("(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
         return all(allowed.match(x) for x in hostname.split("."))
+
+    def _connect_to_pirover(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(5)
+    
+        try:
+            self.sock.connect((self.hostname, self.port))
+        except OSError as e:
+            self.sock.close()
+            raise e
+        
+        msg = "Hello PiRover!"
+        # TODO: Append flags to message
+        print("We:", msg)
+        self.sock.send(msg.encode())
+
+        answer = self.sock.recv(256)
+        print("PiRover:", answer.decode())
+        m = re.match(r'PiRover \d+\.\d+ here! (\d+\.?\d+)', answer.decode())
+        
+        if not m:
+            print("Invalid respond from PiRover!")
+            raise Exception("Something responded, but it doesn't seem to be a PiRover server.")
+        
+        print("Salt is:", m.group(1))
+
+        pw = self.ent_password.get()
+        msg = hashlib.md5((pw + m.group(1)).encode()).hexdigest() + "\n"
+        print("We:", msg)
+        self.sock.send(msg.encode())
+
+        answer = self.sock.recv(256).decode()
+        print("PiRover:", answer)
+
+        if answer != "OK\n":
+            raise Exception("Authentication with PiRover failed. Invalid password?")
+
+        print("Connection successfully established!")
+        

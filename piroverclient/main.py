@@ -1,6 +1,6 @@
 from . import connectiondialog
 
-print("Hello World!")
+print("PiRover client app started!")
 cd = connectiondialog.ConnectionDialog()
-cd.show()
-print(cd.connection_params)
+if cd.show():
+    input("Press the Enter key to close connection.") 
