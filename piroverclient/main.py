@@ -7,5 +7,5 @@ cd = connectiondialog.ConnectionDialog()
 if not cd.show():
     sys.exit(0)
 
-cw = controlwindow.ControlWindow()
+cw = controlwindow.ControlWindow(cd.sock)
 cw.show()

@@ -1,6 +1,7 @@
 from tkinter import *
 from tkinter import ttk, messagebox
-from threading import Timer
+import threading
+import time
 
 # How long a single key press lasts (as opposed to a press-and-hold).
 SINGLE_PRESS_MAX_SECONDS = 0.05
@@ -41,12 +42,14 @@ class Debouncer(object):
         ''' Callback for a key being released. '''
         # Set a timer. If it is allowed to expire (not reset by another down
         # event), then we know the key has been released for good.
-        self.key_released_timer = Timer(SINGLE_PRESS_MAX_SECONDS,
+        self.key_released_timer = threading.Timer(SINGLE_PRESS_MAX_SECONDS,
                                         self._key_released_timer_cb, [event])
         self.key_released_timer.start()
 
 class ControlWindow():
-    def __init__(self):
+    def __init__(self, socket):
+        self.sock = socket
+
         self.window = Tk()
         self.window.resizable(height=False, width=False)
         self.window.title("PiRover Client App")
@@ -70,28 +73,49 @@ class ControlWindow():
         self.debouncer_down = Debouncer(self._key_pressed, self._key_released)
         self.window.bind('<KeyPress-Down>', self.debouncer_down.pressed)
         self.window.bind('<KeyRelease-Down>', self.debouncer_down.released)
-    
+
+        self.keep_alive_thread = threading.Thread(target=self._keep_alive_thread)
+        self.keep_alive_thread.start()
+
     def show(self):
         self.window.mainloop()
+        self.keep_alive_thread = None
     
     def _key_pressed(self, event):
-        # TODO: Send actual commands to PiRover
+        msg = None
+
         if event.keysym == "Up":
-            print("UP pressed")
+            msg = "UP pressed\n"
         elif event.keysym == "Down":
-            print("DOWN pressed")
+            msg = "DOWN pressed\n"
         elif event.keysym == "Left":
-            print("LEFT pressed")
+            msg = "LEFT pressed\n"
         elif event.keysym == "Right":
-            print("RIGHT pressed")
+            msg = "RIGHT pressed\n"
+
+        if msg:
+            print(msg)
+            self.sock.send(msg.encode())
     
     def _key_released(self, event):
-        # TODO: Send actual commands to PiRover
+        msg = None
+
         if event.keysym == "Up":
-            print("UP released")
+            msg = "UP released\n"
         elif event.keysym == "Down":
-            print("DOWN released")
+            msg = "DOWN released\n"
         elif event.keysym == "Left":
-            print("LEFT released")
+            msg = "LEFT released\n"
         elif event.keysym == "Right":
-            print("RIGHT released")
+            msg = "RIGHT released\n"
+
+        if msg:
+            print(msg)
+            self.sock.send(msg.encode())
+
+    def _keep_alive_thread(self):
+        msg = "Keep alive\n"
+        while self.keep_alive_thread:
+            print(msg)
+            self.sock.send(msg.encode())
+            time.sleep(1)
