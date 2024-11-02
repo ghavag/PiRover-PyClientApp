@@ -2,6 +2,10 @@ from tkinter import *
 from tkinter import ttk, messagebox
 import threading
 import time
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstVideo', '1.0')
+from gi.repository import Gst, GObject, GLib, GstVideo
 
 # How long a single key press lasts (as opposed to a press-and-hold).
 SINGLE_PRESS_MAX_SECONDS = 0.05
@@ -53,6 +57,7 @@ class ControlWindow():
         self.window = Tk()
         self.window.resizable(height=False, width=False)
         self.window.title("PiRover Client App")
+        self.window.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         self.canvas = Canvas(self.window, width=800, height=600, bg="black")
         self.canvas.pack()
@@ -76,6 +81,16 @@ class ControlWindow():
 
         self.keep_alive_thread = threading.Thread(target=self._keep_alive_thread)
         self.keep_alive_thread.start()
+
+        # Set up the gstreamer pipeline
+        Gst.init(None)
+        self.vid_player = Gst.parse_launch("udpsrc uri=udp://0.0.0.0:5000 ! application/x-rtp,encoding-name=H264,payload=96 ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! xvimagesink")
+        bus = self.vid_player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        bus.connect("message", self.on_message)
+        bus.connect("sync-message::element", self.on_sync_message)
+        self.vid_player.set_state(Gst.State.PLAYING)
 
     def show(self):
         self.window.mainloop()
@@ -119,3 +134,22 @@ class ControlWindow():
             print(msg)
             self.sock.send(msg.encode())
             time.sleep(1)
+
+    def on_message(self, bus, message):
+        t = message.type
+        if t == gst.MESSAGE_EOS:
+            self.vid_player.set_state(gst.STATE_NULL)
+        elif t == gst.MESSAGE_ERROR:
+            err, debug = message.parse_error()
+            print("Error: %s" % err, debug)
+            self.vid_player.set_state(gst.STATE_NULL)
+
+    def on_sync_message(self, bus, message):
+        if message.get_structure().get_name() == 'prepare-window-handle':
+            imagesink = message.src
+            imagesink.set_property("force-aspect-ratio", True)
+            imagesink.set_window_handle(self.canvas.winfo_id())
+
+    def _on_closing(self):
+        self.vid_player.set_state(Gst.State.NULL)
+        self.window.destroy()
