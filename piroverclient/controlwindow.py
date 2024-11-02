@@ -92,6 +92,9 @@ class ControlWindow():
         bus.connect("sync-message::element", self.on_sync_message)
         self.vid_player.set_state(Gst.State.PLAYING)
 
+        self.aud_player = Gst.parse_launch("udpsrc address=0.0.0.0 port=5001 ! mpegaudioparse ! mpg123audiodec ! audioconvert ! autoaudiosink")
+        self.aud_player.set_state(Gst.State.PLAYING)
+
     def show(self):
         self.window.mainloop()
         self.keep_alive_thread = None
@@ -152,4 +155,5 @@ class ControlWindow():
 
     def _on_closing(self):
         self.vid_player.set_state(Gst.State.NULL)
+        self.aud_player.set_state(Gst.State.NULL)
         self.window.destroy()
