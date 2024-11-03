@@ -10,9 +10,11 @@ from gi.repository import Gst, GObject, GLib, GstVideo
 # How long a single key press lasts (as opposed to a press-and-hold).
 SINGLE_PRESS_MAX_SECONDS = 0.05
 
-# Code for class borrowed from https://github.com/adamheins/tk-debouncer
 class Debouncer(object):
-    ''' Debounces key events for Tkinter apps, so that press-and-hold works. '''
+"""
+Debounces key events for Tkinter apps, so that press-and-hold works.
+Code for class borrowed from https://github.com/adamheins/tk-debouncer
+"""
     def __init__(self, pressed_cb, released_cb):
         self.key_pressed = False
         self.key_released_timer = None
@@ -51,7 +53,14 @@ class Debouncer(object):
         self.key_released_timer.start()
 
 class ControlWindow():
+"""
+Class wrapping the code for the control windows.
+"""
     def __init__(self, socket):
+        """
+        Class constructor. Setups the GUI elements and sets up the
+        GStreamer pipelines for receiving video and audio.
+        """
         self.sock = socket
 
         self.window = Tk()
@@ -88,18 +97,24 @@ class ControlWindow():
         bus = self.vid_player.get_bus()
         bus.add_signal_watch()
         bus.enable_sync_message_emission()
-        bus.connect("message", self.on_message)
-        bus.connect("sync-message::element", self.on_sync_message)
+        bus.connect("message", self._on_message)
+        bus.connect("sync-message::element", self._on_sync_message)
         self.vid_player.set_state(Gst.State.PLAYING)
 
         self.aud_player = Gst.parse_launch("udpsrc address=0.0.0.0 port=5001 ! mpegaudioparse ! mpg123audiodec ! audioconvert ! autoaudiosink")
         self.aud_player.set_state(Gst.State.PLAYING)
 
     def show(self):
+        """
+        Shows the control window and blocks until the user closes it.
+        """
         self.window.mainloop()
         self.keep_alive_thread = None
     
     def _key_pressed(self, event):
+        """
+        Called by the GUI on key pressed events for an arrow key.
+        """
         msg = None
 
         if event.keysym == "Up":
@@ -116,6 +131,9 @@ class ControlWindow():
             self.sock.send(msg.encode())
     
     def _key_released(self, event):
+        """
+        Called by the GUI on key release events for an arrow key.
+        """
         msg = None
 
         if event.keysym == "Up":
@@ -132,13 +150,20 @@ class ControlWindow():
             self.sock.send(msg.encode())
 
     def _keep_alive_thread(self):
+        """
+        That function sends regular keep alive messages to the PiRover
+        server.
+        """
         msg = "Keep alive\n"
         while self.keep_alive_thread:
             print(msg)
             self.sock.send(msg.encode())
             time.sleep(1)
 
-    def on_message(self, bus, message):
+    def _on_message(self, bus, message):
+        """
+        Handles messages from GStreamer bus.
+        """
         t = message.type
         if t == gst.MESSAGE_EOS:
             self.vid_player.set_state(gst.STATE_NULL)
@@ -147,13 +172,20 @@ class ControlWindow():
             print("Error: %s" % err, debug)
             self.vid_player.set_state(gst.STATE_NULL)
 
-    def on_sync_message(self, bus, message):
+    def _on_sync_message(self, bus, message):
+        """
+        Handles sync-message from GStreamer bus.
+        """
         if message.get_structure().get_name() == 'prepare-window-handle':
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
             imagesink.set_window_handle(self.canvas.winfo_id())
 
     def _on_closing(self):
+        """
+        Handles teardown of GStreamer pipelines etc. if the user closes
+        the control windows and thus the whole client app.
+        """
         self.vid_player.set_state(Gst.State.NULL)
         self.aud_player.set_state(Gst.State.NULL)
         self.window.destroy()

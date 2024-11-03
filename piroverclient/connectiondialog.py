@@ -1,3 +1,18 @@
+# Copyright (c) 2024 Alexander Graeb
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# (see LICENSE_LGPLv3) along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+
 import socket
 import re
 import hashlib
@@ -5,7 +20,14 @@ from tkinter import *
 from tkinter import ttk, messagebox
 
 class ConnectionDialog():
+"""
+Class responsible for showing a dialog that asks for all parameters
+required to connect to the PiRover server, like hostname and port.
+"""
     def __init__(self):
+        """
+        Class constructor. Setups the GUI elements.
+        """
         self.sock = None
 
         self.window = Tk()
@@ -44,14 +66,31 @@ class ConnectionDialog():
         self.btn_connect.grid(row=5, column=1)
 
     def __del__(self):
+        """
+        Class destructor. Closes the socket if it existed then the class
+        is destroyed. The class must live during the lifetime of the whole
+        client app.
+        """
         if self.sock:
             self.sock.close()
     
     def show(self):
+        """
+        Shows the dialog. Blocks until the dialog has been closed.
+        Returns true, if the user initiated the connection to the
+        PiRover server and the validation has been passed and false
+        otherwise.
+        """
         self.window.mainloop()
         return self.sock != None
 
     def _on_connect(self):
+        """
+        Called by the GUI if the user clicked the button to connect.
+        Does validation of the input data and connects to the PiRover
+        server. Closes the dialog if the connection has been successfully
+        established.
+        """
         self.ent_server_address["style"] = ""
         self.ent_server_port["style"] = ""
 
@@ -64,6 +103,10 @@ class ConnectionDialog():
                 self.window.destroy()
 
     def _validate(self):
+        """
+        Does very basic validation on entered hostname and port. Returns
+        true on success and false otherwise.
+        """
         hostname = self.ent_server_address.get()
         
         if not self._is_valid_hostname(hostname):
@@ -91,8 +134,12 @@ class ConnectionDialog():
 
         return True
 
-    # https://stackoverflow.com/questions/2532053/validate-a-hostname-string
     def _is_valid_hostname(self, hostname):
+        """
+        Validates a hostname and return true if the hostname is valid and
+        false otherwise. Got inspired from:
+        https://stackoverflow.com/questions/2532053/validate-a-hostname-string
+        """
         if len(hostname) < 1 or len(hostname) > 255:
             return False
         if hostname[-1] == ".":
@@ -102,6 +149,10 @@ class ConnectionDialog():
         return all(allowed.match(x) for x in hostname.split("."))
 
     def _connect_to_pirover(self):
+        """
+        Establishes a connection to a PiRover server and performs the
+        authentication.
+        """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(5)
     
